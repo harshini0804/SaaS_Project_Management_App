@@ -3,6 +3,9 @@ import { useContext } from 'react';
 import { AuthContext } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Dashboard from './pages/Dashboard'; // 1. Import the new dashboard
+import Settings from './pages/Settings';
+import JoinWorkspace from './pages/JoinWorkspace';
 
 function App() {
   const { user, loading } = useContext(AuthContext);
@@ -14,30 +17,25 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Public Routes */}
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
         <Route path="/register" element={!user ? <Register /> : <Navigate to="/dashboard" />} />
 
-        {/* Temporary Dashboard Route (To prove login worked) */}
+        {/* 2. Swap out the inline code for the Dashboard component */}
         <Route 
           path="/dashboard" 
-          element={
-            user ? (
-              <div className="p-10">
-                <h1 className="text-3xl font-bold text-green-600">Welcome, {user.email}!</h1>
-                <p>Your workspace is ready.</p>
-              </div>
-            ) : (
-              <Navigate to="/login" />
-            )
-          } 
+          element={user ? <Dashboard /> : <Navigate to="/login" />} 
         />
 
-        {/* Catch-all redirect */}
         <Route path="*" element={<Navigate to="/login" />} />
+
+        <Route 
+          path="/settings" 
+          element={user ? <Settings /> : <Navigate to="/login" />} 
+        />
+        <Route path="/join/:token" element={<JoinWorkspace />} />
       </Routes>
     </Router>
   );
 }
 
-export default App; 
+export default App;

@@ -3,6 +3,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
 from api.auth import router as auth_router
+from api.auth import router as auth_router
+from api.workspaces import router as workspaces_router # 1. Add this import
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -21,7 +23,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"])
-
+app.include_router(workspaces_router, prefix=f"{settings.API_V1_STR}/workspaces", tags=["Workspaces"])
 @app.get("/")
 def root():
     return {

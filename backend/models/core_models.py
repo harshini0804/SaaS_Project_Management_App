@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, Enum, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from datetime import datetime, timedelta, timezone
 import enum
 import uuid
 
@@ -73,4 +74,15 @@ class Task(Base):
     status = Column(String, default="To Do") # e.g., To Do, In Progress, Done
     project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     assignee_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class WorkspaceInvite(Base):
+    __tablename__ = "workspace_invites"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    email = Column(String, nullable=False)  # The email of the person being invited
+    role = Column(String, default="member") # Default to basic member
+    token = Column(String, unique=True, index=True, default=lambda: str(uuid.uuid4()))
+    expires_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())

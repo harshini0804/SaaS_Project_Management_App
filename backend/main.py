@@ -4,7 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
 from api.auth import router as auth_router
 from api.auth import router as auth_router
-from api.workspaces import router as workspaces_router # 1. Add this import
+from api.workspaces import router as workspaces_router 
+from api.projects import router as projects_router 
+from api.tasks import router as tasks_router 
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -24,6 +26,9 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"])
 app.include_router(workspaces_router, prefix=f"{settings.API_V1_STR}/workspaces", tags=["Workspaces"])
+app.include_router(projects_router, prefix=f"{settings.API_V1_STR}/projects", tags=["Projects"])    
+app.include_router(tasks_router, prefix=f"{settings.API_V1_STR}/tasks", tags=["Tasks"])
+
 @app.get("/")
 def root():
     return {

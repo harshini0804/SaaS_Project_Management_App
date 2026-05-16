@@ -72,8 +72,29 @@ class Task(Base):
     title = Column(String, nullable=False)
     description = Column(String, nullable=True)
     status = Column(String, default="To Do") # e.g., To Do, In Progress, Done
+    position = Column(Integer, default=0)
     project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     assignee_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class TaskComment(Base):
+    __tablename__ = "task_comments"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    task_id = Column(String, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    content = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class ActivityLog(Base):
+    __tablename__ = "activity_logs"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    entity_type = Column(String, nullable=False) # e.g., "task", "project"
+    entity_id = Column(String, nullable=False)
+    action = Column(String, nullable=False)      # e.g., "created", "moved to Done"
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class WorkspaceInvite(Base):
@@ -85,4 +106,14 @@ class WorkspaceInvite(Base):
     role = Column(String, default="member") # Default to basic member
     token = Column(String, unique=True, index=True, default=lambda: str(uuid.uuid4()))
     expires_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class TaskAttachment(Base):
+    __tablename__ = "task_attachments"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    task_id = Column(String, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    file_name = Column(String, nullable=False)   # e.g., "design_v2.png"
+    file_path = Column(String, nullable=False)   # The exact path in S3 (e.g., "tenant-123/task-456/design_v2.png")
     created_at = Column(DateTime(timezone=True), server_default=func.now())

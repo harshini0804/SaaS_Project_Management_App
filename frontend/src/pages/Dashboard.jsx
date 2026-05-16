@@ -74,12 +74,17 @@ export default function Dashboard() {
                         <p className="col-span-3 text-gray-500">No projects yet. Create one to get started!</p>
                     ) : (
                         projects.map((project) => (
-                            <div key={project.id} className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
+                            // 1. Change this div to a Link
+                            <Link 
+                                to={`/projects/${project.id}`} 
+                                key={project.id} 
+                                className="block rounded-lg border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow"
+                            >
                                 <h3 className="mb-2 text-lg font-semibold text-gray-900">{project.name}</h3>
                                 <p className="text-sm text-gray-600 line-clamp-3">
                                     {project.description || "No description provided."}
                                 </p>
-                            </div>
+                            </Link>
                         ))
                     )}
                 </div>

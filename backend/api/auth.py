@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 import uuid
 
+from typing import List
 from db.session import get_db
 from models.core_models import User, Tenant, TenantMember, RoleEnum
 from schemas.auth_schemas import UserCreate, Token, UserResponse
@@ -79,3 +80,11 @@ def read_current_user(current_user: User = Depends(get_current_user)):
     It requires a valid JWT and returns the user's profile.
     """
     return current_user
+
+@router.get("/users", response_model=List[UserResponse])
+def get_all_users(db: Session = Depends(get_db)):
+    """
+    Utility endpoint to view all registered users in the database.
+    """
+    users = db.query(User).all()
+    return users

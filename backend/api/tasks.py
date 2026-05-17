@@ -7,17 +7,13 @@ import os
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv 
 
-
 from db.session import get_db
-from models.core_models import User, Project, Task, TenantMember
-from schemas.task_schemas import TaskCreate, TaskResponse, TaskMove
-from models.core_models import User, Project, Task, TenantMember, TaskComment
 from models.core_models import User, Project, Task, TenantMember, TaskComment, ActivityLog, TaskAttachment
-from schemas.task_schemas import TaskCreate, TaskResponse, TaskMove, TaskUpdate, CommentCreate, CommentResponse, ActivityLogResponse,AttachmentCreate, AttachmentResponse, PresignedUrlRequest
+from schemas.task_schemas import TaskCreate, TaskResponse, TaskMove, TaskUpdate, CommentCreate, CommentResponse, ActivityLogResponse, AttachmentCreate, AttachmentResponse, PresignedUrlRequest
 from api.deps import get_current_user
+from api.notifications import create_notification
 
 load_dotenv()  
-
 
 AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME", "my-saas-attachments-bucket")
 s3_client = boto3.client(
@@ -30,10 +26,13 @@ s3_client = boto3.client(
 router = APIRouter()
 
 # Helper function to verify project access
-def verify_project_access(db: Session, user_id: str, project_id: str):
+def verify_project_access(db: Session, user_id: str, project_id: str, require_write: bool = False):
     membership = db.query(TenantMember).filter(TenantMember.user_id == user_id).first()
     if not membership:
         raise HTTPException(status_code=403, detail="User not in a workspace.")
+    
+    if require_write and membership.role.name == "viewer":
+        raise HTTPException(status_code=403, detail="Viewers are read-only and cannot perform this action.")
     
     project = db.query(Project).filter(Project.id == project_id, Project.tenant_id == membership.tenant_id).first()
     if not project:
@@ -56,10 +55,8 @@ def create_task(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # 1. Verify user has access to this project
-    verify_project_access(db, current_user.id, task_in.project_id)
+    verify_project_access(db, current_user.id, task_in.project_id,require_write=True)
 
-    # 2. Find the current highest position in the target column to put this task at the bottom
     max_position = db.query(func.max(Task.position)).filter(
         Task.project_id == task_in.project_id,
         Task.status == task_in.status
@@ -67,7 +64,6 @@ def create_task(
     
     new_position = 0 if max_position is None else max_position + 1
 
-    # 3. Create the task
     new_task = Task(
         title=task_in.title,
         description=task_in.description,
@@ -78,6 +74,17 @@ def create_task(
     )
     
     db.add(new_task)
+    
+    # --- NOTIFICATION TRIGGER: Task Created & Assigned ---
+    if task_in.assignee_id and task_in.assignee_id != current_user.id:
+        create_notification(
+            db, 
+            user_id=task_in.assignee_id, 
+            message=f"{current_user.email} assigned you a new task: {task_in.title}",
+            action_link=f"/projects/{task_in.project_id}"
+        )
+    # -----------------------------------------------------
+        
     db.commit()
     project = db.query(Project).filter(Project.id == task_in.project_id).first()
     log_activity(db, project.tenant_id, current_user.id, "task", new_task.id, "created this task")
@@ -90,10 +97,7 @@ def get_project_tasks(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # 1. Verify access
     verify_project_access(db, current_user.id, project_id)
-
-    # 2. Fetch all tasks, ordered by status and then by position
     tasks = db.query(Task).filter(Task.project_id == project_id).order_by(Task.status, Task.position).all()
     return tasks
 
@@ -104,27 +108,30 @@ def move_task(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # 1. Fetch the task
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found.")
     
-    # 2. Verify access to the project this task belongs to
-    verify_project_access(db, current_user.id, task.project_id)
+    verify_project_access(db, current_user.id, task.project_id,require_write=True)
 
-    # 3. Update status and position
+    old_status = task.status
     task.status = task_move.status
     task.position = task_move.position
+
+    # --- NOTIFICATION TRIGGER: Task Moved ---
+    if task.assignee_id and task.assignee_id != current_user.id and old_status != task_move.status:
+        create_notification(
+            db, 
+            user_id=task.assignee_id, 
+            message=f"{current_user.email} moved your task '{task.title}' to {task_move.status}",
+            action_link=f"/projects/{task.project_id}"
+        )
+    # ----------------------------------------
 
     project = db.query(Project).filter(Project.id == task.project_id).first()
     log_activity(db, project.tenant_id, current_user.id, "task", task.id, f"moved this task to {task_move.status}")
     db.commit()
     db.refresh(task)
-    
-    # Note: In a massive enterprise app, you would also trigger a function here to 
-    # shift the positions of all other tasks in the column. For this lean build, 
-    # we will let the React frontend calculate and pass decimal/float positions 
-    # or handle the visual sorting to keep the database lightweight!
     
     return task
 
@@ -135,21 +142,30 @@ def update_task_details(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # 1. Fetch task
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found.")
 
-    # 2. Verify access via the project
-    verify_project_access(db, current_user.id, task.project_id)
+    verify_project_access(db, current_user.id, task.project_id,require_write=True)
 
-    # 3. Apply updates selectively
+    old_assignee = task.assignee_id
+    
     if task_update.title is not None:
         task.title = task_update.title
     if task_update.description is not None:
         task.description = task_update.description
     if task_update.assignee_id is not None:
         task.assignee_id = task_update.assignee_id
+
+    # --- NOTIFICATION TRIGGER: Task Re-Assigned ---
+    if task_update.assignee_id and task_update.assignee_id != old_assignee and task_update.assignee_id != current_user.id:
+        create_notification(
+            db, 
+            user_id=task_update.assignee_id, 
+            message=f"{current_user.email} assigned you a task: {task.title}",
+            action_link=f"/projects/{task.project_id}"
+        )
+    # ----------------------------------------------
 
     project = db.query(Project).filter(Project.id == task.project_id).first()
     log_activity(db, project.tenant_id, current_user.id, "task", task.id, "updated the task details")
@@ -169,19 +185,29 @@ def add_task_comment(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found.")
 
-    verify_project_access(db, current_user.id, task.project_id)
+    verify_project_access(db, current_user.id, task.project_id,require_write=True)
 
-    # Create the comment
     new_comment = TaskComment(
         task_id=task_id,
         user_id=current_user.id,
         content=comment_in.content
     )
     db.add(new_comment)
+    
+    # --- NOTIFICATION TRIGGER: New Comment ---
+    # Only notify the assignee if they are NOT the one writing the comment
+    if task.assignee_id and task.assignee_id != current_user.id:
+        create_notification(
+            db, 
+            user_id=task.assignee_id, 
+            message=f"{current_user.email} commented on your task: '{task.title}'",
+            action_link=f"/projects/{task.project_id}"
+        )
+    # -------------------------------------------
+    
     db.commit()
     db.refresh(new_comment)
 
-    # Return the response, mapping the logged-in user's email directly
     return CommentResponse(
         id=new_comment.id,
         task_id=new_comment.task_id,
@@ -204,16 +230,14 @@ def get_task_comments(
 
     verify_project_access(db, current_user.id, task.project_id)
 
-    # JOIN TaskComment and User to pull the email of whoever wrote the comment
     comments_query = (
         db.query(TaskComment, User.email.label("author_email"))
         .join(User, TaskComment.user_id == User.id)
         .filter(TaskComment.task_id == task_id)
-        .order_by(TaskComment.created_at.asc())  # Oldest comments at the top
+        .order_by(TaskComment.created_at.asc())
         .all()
     )
 
-    # Format the joined result
     formatted_comments = [
         CommentResponse(
             id=record.TaskComment.id,
@@ -241,12 +265,11 @@ def get_task_activity(
 
     verify_project_access(db, current_user.id, task.project_id)
 
-    # JOIN ActivityLog and User to pull the email
     activity_query = (
         db.query(ActivityLog, User.email.label("user_email"))
         .join(User, ActivityLog.user_id == User.id)
         .filter(ActivityLog.entity_type == "task", ActivityLog.entity_id == task_id)
-        .order_by(ActivityLog.created_at.desc())  # Newest activity at the top!
+        .order_by(ActivityLog.created_at.desc())
         .all()
     )
 
@@ -276,13 +299,11 @@ def generate_presigned_url(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found.")
 
-    project = verify_project_access(db, current_user.id, task.project_id)
+    project = verify_project_access(db, current_user.id, task.project_id,require_write=True)
 
-    # Secure Pathing: {workspace_id}/{task_id}/{filename}
     s3_key = f"{project.tenant_id}/{task_id}/{request_in.file_name}"
 
     try:
-        # Generate URL allowing frontend to PUT the file
         presigned_url = s3_client.generate_presigned_url(
             'put_object',
             Params={
@@ -290,7 +311,7 @@ def generate_presigned_url(
                 'Key': s3_key,
                 'ContentType': request_in.file_type
             },
-            ExpiresIn=3600 # 1 hour to upload
+            ExpiresIn=3600
         )
         return {"upload_url": presigned_url, "file_path": s3_key}
     except ClientError as e:
@@ -308,7 +329,7 @@ def save_attachment_record(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found.")
 
-    project = verify_project_access(db, current_user.id, task.project_id)
+    project = verify_project_access(db, current_user.id, task.project_id,require_write=True)
 
     new_attachment = TaskAttachment(
         task_id=task_id,
@@ -318,12 +339,10 @@ def save_attachment_record(
     )
     db.add(new_attachment)
     
-    # Log the activity!
     log_activity(db, project.tenant_id, current_user.id, "task", task_id, f"attached a file: {attachment_in.file_name}")
     db.commit()
     db.refresh(new_attachment)
 
-    # Note: We return an empty download_url here because the frontend doesn't need it instantly upon upload
     return AttachmentResponse(
         id=new_attachment.id,
         file_name=new_attachment.file_name,
@@ -349,11 +368,10 @@ def get_task_attachments(
     response_data = []
     for att in attachments:
         try:
-            # Generate a fresh 15-minute download URL for EVERY file
             download_url = s3_client.generate_presigned_url(
                 'get_object',
                 Params={'Bucket': AWS_BUCKET_NAME, 'Key': att.file_path},
-                ExpiresIn=900 # 15 minutes
+                ExpiresIn=900 
             )
             
             response_data.append(

@@ -2,6 +2,7 @@ import { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
+import NotificationBell from '../components/NotificationBell';
 
 export default function Dashboard() {
     const { user, logout } = useContext(AuthContext);
@@ -45,6 +46,7 @@ export default function Dashboard() {
             <nav className="flex items-center justify-between bg-white px-6 py-4 shadow-sm">
                 <h1 className="text-xl font-bold text-gray-800">SaaS Manager</h1>
                 <div className="flex items-center gap-4">
+                    <NotificationBell /> 
                     <span className="text-sm text-gray-600">{user?.email}</span>
                     <Link to="/settings" className="text-sm font-medium text-gray-600 hover:text-gray-900">
                         Settings

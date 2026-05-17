@@ -4,6 +4,7 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { AuthContext } from '../context/AuthContext';
 import TaskDetails from '../components/TaskDetails';
 import api from '../api/axios';
+import NotificationBell from '../components/NotificationBell';
 
 const COLUMNS = ['To Do', 'In Progress', 'In Review', 'Done'];
 
@@ -104,6 +105,11 @@ export default function ProjectBoard() {
                 <div className="flex items-center gap-4">
                     <Link to="/dashboard" className="text-gray-500 hover:text-gray-800">← Dashboard</Link>
                     <h1 className="text-xl font-bold text-gray-800">{project.name}</h1>
+                </div>
+                {/* NEW: Added Bell and Email to the right side */}
+                <div className="flex items-center gap-4">
+                    <NotificationBell />
+                    <span className="text-sm text-gray-600">{user?.email}</span>
                 </div>
             </nav>
 

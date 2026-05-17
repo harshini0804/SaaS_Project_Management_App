@@ -27,6 +27,7 @@ export default function JoinWorkspace() {
 
     // If they click the link but aren't logged in, intercept them.
     if (!user) {
+        localStorage.setItem('pendingInvite', token);
         return (
             <div className="flex h-screen items-center justify-center bg-gray-50">
                 <div className="w-full max-w-md rounded-lg bg-white p-8 text-center shadow-md">

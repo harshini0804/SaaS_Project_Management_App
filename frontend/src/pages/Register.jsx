@@ -1,6 +1,7 @@
 import { useState, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
+import api from '../api/axios';
 
 export default function Register() {
     const [email, setEmail] = useState('');
@@ -13,12 +14,24 @@ export default function Register() {
         e.preventDefault();
         try {
             await register(email, password, workspace);
+            
+            // NEW: Auto-join if they came from an invite link!
+            const pendingInvite = localStorage.getItem('pendingInvite');
+            if (pendingInvite) {
+                try {
+                    await api.post(`/workspaces/join/${pendingInvite}`);
+                } catch (inviteError) {
+                    console.error("Auto-join failed:", inviteError);
+                } finally {
+                    localStorage.removeItem('pendingInvite'); // Clear it
+                }
+            }
+            
             navigate('/dashboard'); // Redirect on success
         } catch (error) {
             alert('Registration failed.');
         }
     };
-
     return (
         <div className="flex h-screen items-center justify-center bg-gray-50">
             <form onSubmit={handleSubmit} className="w-96 rounded-lg bg-white p-8 shadow-md">

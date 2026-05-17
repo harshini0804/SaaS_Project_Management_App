@@ -134,28 +134,53 @@ def accept_invitation(
     if current_user.email != invite.email:
         raise HTTPException(status_code=403, detail="This invitation was sent to a different email address.")
 
-    # 4. Check if they are already in the workspace (just in case)
-    existing_member = db.query(TenantMember).filter(
-        TenantMember.tenant_id == invite.tenant_id,
-        TenantMember.user_id == current_user.id
-    ).first()
+    # 4. THE FIX: Find ANY existing workspace this user is tied to (like their default registration workspace)
+    existing_membership = db.query(TenantMember).filter(TenantMember.user_id == current_user.id).first()
     
-    if existing_member:
-        db.delete(invite) # Clean up the token
-        db.commit()
-        return {"message": "You are already a member of this workspace."}
-
-    # 5. Add the user to the workspace
-    # Note: We safely map the string role from the invite to the RoleEnum
-    new_member = TenantMember(
-        tenant_id=invite.tenant_id,
-        user_id=current_user.id,
-        role=RoleEnum[invite.role] 
-    )
-    db.add(new_member)
+    if existing_membership:
+        # Overwrite their default empty workspace with the team workspace!
+        existing_membership.tenant_id = invite.tenant_id
+        existing_membership.role = RoleEnum[invite.role]
+    else:
+        # Fallback if they somehow have no workspace at all
+        new_member = TenantMember(
+            tenant_id=invite.tenant_id,
+            user_id=current_user.id,
+            role=RoleEnum[invite.role] 
+        )
+        db.add(new_member)
     
-    # 6. Delete the token so it cannot be used again
+    # 5. Delete the token so it cannot be used again
     db.delete(invite)
     db.commit()
 
     return {"message": "Successfully joined the workspace!"}
+
+@router.delete("/members/{user_id}", status_code=status.HTTP_200_OK)
+def remove_workspace_member(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 1. Verify current user is an owner/admin
+    current_membership = db.query(TenantMember).filter(TenantMember.user_id == current_user.id).first()
+    if not current_membership or current_membership.role.value not in ["owner", "admin"]:
+        raise HTTPException(status_code=403, detail="Not authorized to remove members.")
+
+    # 2. Prevent the user from removing themselves
+    if current_user.id == user_id:
+        raise HTTPException(status_code=400, detail="You cannot remove yourself.")
+
+    # 3. Find the member to remove
+    member_to_remove = db.query(TenantMember).filter(
+        TenantMember.tenant_id == current_membership.tenant_id,
+        TenantMember.user_id == user_id
+    ).first()
+
+    if not member_to_remove:
+        raise HTTPException(status_code=404, detail="User is not in this workspace.")
+
+    # 4. Remove them!
+    db.delete(member_to_remove)
+    db.commit()
+    return {"message": "Member removed successfully"}

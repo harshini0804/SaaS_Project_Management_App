@@ -10,10 +10,13 @@ from api.deps import get_current_user
 router = APIRouter()
 
 # Helper function to ensure we always get the user's workspace
-def get_tenant_membership(db: Session, user_id: str):
+def get_tenant_membership(db: Session, user_id: str, require_write: bool = False):
     membership = db.query(TenantMember).filter(TenantMember.user_id == user_id).first()
     if not membership:
         raise HTTPException(status_code=403, detail="User does not belong to any workspace.")
+    if require_write and membership.role.name == "viewer":
+        raise HTTPException(status_code=403, detail="Viewers are read-only and cannot perform this action.")
+    
     return membership
 
 
@@ -39,11 +42,13 @@ def create_project(
 
 
 @router.get("/", response_model=List[ProjectResponse])
-def get_projects(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    membership = get_tenant_membership(db, current_user.id)
+def get_projects(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # 1. Find what workspace the user belongs to
+    membership = db.query(TenantMember).filter(TenantMember.user_id == current_user.id).first()
+    if not membership:
+        return []
+
+    # 2. Return ALL projects in that workspace
     projects = db.query(Project).filter(Project.tenant_id == membership.tenant_id).all()
     return projects
 

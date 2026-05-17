@@ -1,6 +1,7 @@
 import { useState, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
+import api from '../api/axios';
 
 export default function Login() {
     const [email, setEmail] = useState('');
@@ -12,6 +13,19 @@ export default function Login() {
         e.preventDefault();
         try {
             await login(email, password);
+
+            // NEW: Auto-join if they came from an invite link!
+            const pendingInvite = localStorage.getItem('pendingInvite');
+            if (pendingInvite) {
+                try {
+                    await api.post(`/workspaces/join/${pendingInvite}`);
+                } catch (inviteError) {
+                    console.error("Auto-join failed:", inviteError);
+                } finally {
+                    localStorage.removeItem('pendingInvite'); // Clear it
+                }
+            }
+
             navigate('/dashboard'); // Redirect on success
         } catch (error) {
             alert('Login failed. Check your credentials.');

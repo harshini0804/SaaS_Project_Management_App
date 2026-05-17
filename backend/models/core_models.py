@@ -117,3 +117,13 @@ class TaskAttachment(Base):
     file_name = Column(String, nullable=False)   # e.g., "design_v2.png"
     file_path = Column(String, nullable=False)   # The exact path in S3 (e.g., "tenant-123/task-456/design_v2.png")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    message = Column(String, nullable=False)
+    is_read = Column(Boolean, default=False)
+    action_link = Column(String, nullable=True) # e.g., "/projects/123" so they can click it
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     AWS_REGION: Optional[str] = "ap-south-1"
     AWS_BUCKET_NAME: Optional[str] = None
 
+    REDIS_URL: str = "redis://localhost:6380/0"
+    AWS_SES_SENDER_EMAIL: str = ""
+
     class Config:
         env_file = ".env"
 

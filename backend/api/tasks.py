@@ -12,6 +12,7 @@ from models.core_models import User, Project, Task, TenantMember, TaskComment, A
 from schemas.task_schemas import TaskCreate, TaskResponse, TaskMove, TaskUpdate, CommentCreate, CommentResponse, ActivityLogResponse, AttachmentCreate, AttachmentResponse, PresignedUrlRequest
 from api.deps import get_current_user
 from api.notifications import create_notification
+from worker.tasks import send_task_assigned_email
 
 load_dotenv()  
 
@@ -84,6 +85,14 @@ def create_task(
             action_link=f"/projects/{task_in.project_id}"
         )
     # -----------------------------------------------------
+
+    assignee = db.query(User).filter(User.id == task_in.assignee_id).first()
+    if assignee:
+        send_task_assigned_email.delay(
+            recipient_email=assignee.email,
+            task_title=task_in.title,
+            assigner_email=current_user.email
+        )
         
     db.commit()
     project = db.query(Project).filter(Project.id == task_in.project_id).first()
@@ -166,6 +175,14 @@ def update_task_details(
             action_link=f"/projects/{task.project_id}"
         )
     # ----------------------------------------------
+
+    assignee = db.query(User).filter(User.id == task_update.assignee_id).first()
+    if assignee:
+        send_task_assigned_email.delay(
+            recipient_email=assignee.email,
+            task_title=task.title,
+            assigner_email=current_user.email
+        )
 
     project = db.query(Project).filter(Project.id == task.project_id).first()
     log_activity(db, project.tenant_id, current_user.id, "task", task.id, "updated the task details")

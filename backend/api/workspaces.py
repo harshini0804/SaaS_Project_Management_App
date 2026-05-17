@@ -8,6 +8,7 @@ from models.core_models import User, Tenant, TenantMember
 from schemas.workspace_schemas import WorkspaceUpdate, WorkspaceResponse, TeamMemberResponse,InviteCreate, InviteResponse
 from models.core_models import WorkspaceInvite, RoleEnum
 from api.deps import get_current_user
+from worker.tasks import send_invitation_email
 
 router = APIRouter()
 
@@ -109,6 +110,12 @@ def create_invitation_link(
     # 4. Generate the frontend URL that the user will click
     # This points to your React app, not the backend API!
     frontend_link = f"http://localhost:5173/join/{new_invite.token}"
+
+    send_invitation_email.delay(
+        recipient_email=invite_in.email,
+        invite_link=frontend_link,
+        inviter_email=current_user.email
+    )
 
     return InviteResponse(invite_link=frontend_link, expires_at=new_invite.expires_at)
 

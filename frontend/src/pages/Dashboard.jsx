@@ -1,141 +1,111 @@
-import { useState, useEffect, useContext } from 'react';
-import { AuthContext } from '../context/AuthContext';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import api from '../api/axios';
-import NotificationBell from '../components/NotificationBell';
+import Navbar from '../components/Navbar';
 
 export default function Dashboard() {
-    const { user, logout } = useContext(AuthContext);
-    const [projects, setProjects] = useState([]);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    
-    // Form state for new projects
-    const [name, setName] = useState('');
-    const [description, setDescription] = useState('');
+    const [analytics, setAnalytics] = useState(null);
+    const COLORS = ['#3b82f6', '#f59e0b', '#8b5cf6', '#10b981']; 
 
-    // Fetch projects automatically when the page loads
     useEffect(() => {
-        fetchProjects();
+        fetchAnalytics();
     }, []);
 
-    const fetchProjects = async () => {
+    const fetchAnalytics = async () => {
         try {
-            const response = await api.get('/projects/');
-            setProjects(response.data);
+            const response = await api.get('/analytics/workspace');
+            setAnalytics(response.data);
         } catch (error) {
-            console.error("Failed to fetch projects", error);
+            console.error("Failed to fetch analytics", error);
         }
     };
 
-    const handleCreateProject = async (e) => {
-        e.preventDefault();
-        try {
-            await api.post('/projects/', { name, description });
-            setIsModalOpen(false); // Close the modal
-            setName('');           // Clear the form
-            setDescription('');
-            fetchProjects();       // Refresh the list to show the new project
-        } catch (error) {
-            alert("Failed to create project");
-        }
-    };
+    if (!analytics) return (
+        <div className="min-h-screen bg-gray-50">
+            <Navbar />
+            <div className="flex h-[80vh] items-center justify-center text-gray-500">Loading metrics...</div>
+        </div>
+    );
 
     return (
         <div className="min-h-screen bg-gray-50">
-            {/* Top Navigation Bar */}
-            <nav className="flex items-center justify-between bg-white px-6 py-4 shadow-sm">
-                <h1 className="text-xl font-bold text-gray-800">SaaS Manager</h1>
-                <div className="flex items-center gap-4">
-                    <NotificationBell /> 
-                    <span className="text-sm text-gray-600">{user?.email}</span>
-                    <Link to="/settings" className="text-sm font-medium text-gray-600 hover:text-gray-900">
-                        Settings
-                    </Link>
+            <Navbar />
 
-                    <button onClick={logout} className="font-medium text-red-600 hover:text-red-800">
-                        Logout
-                    </button>
-                </div>
-            </nav>
-
-            {/* Main Content Area */}
             <main className="mx-auto max-w-7xl px-6 py-8">
-                <div className="mb-8 flex items-center justify-between">
-                    <h2 className="text-2xl font-bold text-gray-900">Your Projects</h2>
-                    <button 
-                        onClick={() => setIsModalOpen(true)}
-                        className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-                    >
-                        + New Project
-                    </button>
-                </div>
+                <div className="mb-10">
+                    <h2 className="mb-6 text-2xl font-bold text-gray-900">Performance Analytics</h2>
+                    
+                    {/* High-Level Metric Cards */}
+                    <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-3">
+                        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                            <h3 className="text-sm font-medium text-gray-500">Total Workspace Tasks</h3>
+                            <p className="mt-2 text-4xl font-bold text-gray-900">{analytics.total_tasks}</p>
+                        </div>
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-6 shadow-sm ring-1 ring-blue-500">
+                            <h3 className="text-sm font-semibold text-blue-800">Assigned To You</h3>
+                            <p className="mt-2 text-4xl font-bold text-blue-900">{analytics.my_tasks}</p>
+                            {analytics.my_tasks > 0 && <p className="mt-1 text-xs font-medium text-blue-600 animate-pulse">Action required</p>}
+                        </div>
+                        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                            <h3 className="text-sm font-medium text-gray-500">Completed Tasks</h3>
+                            <p className="mt-2 text-4xl font-bold text-green-600">{analytics.completed_tasks}</p>
+                        </div>
+                    </div>
 
-                {/* Projects Grid */}
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                    {projects.length === 0 ? (
-                        <p className="col-span-3 text-gray-500">No projects yet. Create one to get started!</p>
-                    ) : (
-                        projects.map((project) => (
-                            // 1. Change this div to a Link
-                            <Link 
-                                to={`/projects/${project.id}`} 
-                                key={project.id} 
-                                className="block rounded-lg border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow"
-                            >
-                                <h3 className="mb-2 text-lg font-semibold text-gray-900">{project.name}</h3>
-                                <p className="text-sm text-gray-600 line-clamp-3">
-                                    {project.description || "No description provided."}
-                                </p>
-                            </Link>
-                        ))
-                    )}
-                </div>
-            </main>
+                    {/* Chart Area */}
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                        {/* Task Distribution Pie Chart */}
+                        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                            <h3 className="mb-4 text-lg font-semibold text-gray-800">Task Distribution</h3>
+                            {analytics.status_distribution.length === 0 ? (
+                                <p className="text-sm text-gray-500">No data available.</p>
+                            ) : (
+                                <div className="h-72 w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={analytics.status_distribution}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={70}
+                                                outerRadius={90}
+                                                paddingAngle={5}
+                                                dataKey="value"
+                                                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                            >
+                                                {analytics.status_distribution.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            )}
+                        </div>
 
-            {/* Create Project Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 flex items-center justify-center bg-black/50 p-4">
-                    <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-                        <h2 className="mb-4 text-xl font-bold text-gray-900">Create New Project</h2>
-                        <form onSubmit={handleCreateProject}>
-                            <div className="mb-4">
-                                <label className="mb-1 block text-sm font-medium text-gray-700">Project Name</label>
-                                <input 
-                                    type="text" 
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    className="w-full rounded-md border p-2 focus:border-blue-500 focus:outline-none" 
-                                    required 
-                                />
-                            </div>
-                            <div className="mb-6">
-                                <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
-                                <textarea 
-                                    value={description}
-                                    onChange={(e) => setDescription(e.target.value)}
-                                    className="w-full rounded-md border p-2 focus:border-blue-500 focus:outline-none" 
-                                    rows="3"
-                                />
-                            </div>
-                            <div className="flex justify-end gap-3">
-                                <button 
-                                    type="button" 
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="rounded-md px-4 py-2 text-gray-600 hover:bg-gray-100"
-                                >
-                                    Cancel
-                                </button>
-                                <button 
-                                    type="submit" 
-                                    className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-                                >
-                                    Create
-                                </button>
-                            </div>
-                        </form>
+                        {/* Velocity / Progress Bar Chart */}
+                        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                            <h3 className="mb-4 text-lg font-semibold text-gray-800">Pipeline Volume</h3>
+                            {analytics.status_distribution.length === 0 ? (
+                                <p className="text-sm text-gray-500">No data available.</p>
+                            ) : (
+                                <div className="h-72 w-full mt-2">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={analytics.status_distribution}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                            <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                                            <YAxis allowDecimals={false} axisLine={false} tickLine={false} />
+                                            <Tooltip cursor={{ fill: '#f3f4f6' }} />
+                                            <Bar dataKey="value" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
-            )}
+            </main>
         </div>
     );
 }

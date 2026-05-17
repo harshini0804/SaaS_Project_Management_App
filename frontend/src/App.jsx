@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import JoinWorkspace from './pages/JoinWorkspace';
 import ProjectBoard from './pages/ProjectBoard';
+import Workspace from './pages/Workspace';
 
 function App() {
   const { user, loading } = useContext(AuthContext);
@@ -39,6 +40,8 @@ function App() {
           path="/projects/:projectId" 
           element={user ? <ProjectBoard /> : <Navigate to="/login" />} 
         />
+
+        <Route path="/workspace" element=<Workspace />/>
         
       </Routes>
     </Router>

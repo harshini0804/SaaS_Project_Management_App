@@ -5,6 +5,7 @@ import { AuthContext } from '../context/AuthContext';
 import TaskDetails from '../components/TaskDetails';
 import api from '../api/axios';
 import NotificationBell from '../components/NotificationBell';
+import Navbar from '../components/Navbar';
 
 const COLUMNS = ['To Do', 'In Progress', 'In Review', 'Done'];
 
@@ -100,18 +101,8 @@ export default function ProjectBoard() {
 
     return (
         <div className="flex h-screen flex-col bg-gray-50">
-            {/* Top Nav */}
-            <nav className="flex items-center justify-between border-b bg-white px-6 py-4 shadow-sm">
-                <div className="flex items-center gap-4">
-                    <Link to="/dashboard" className="text-gray-500 hover:text-gray-800">← Dashboard</Link>
-                    <h1 className="text-xl font-bold text-gray-800">{project.name}</h1>
-                </div>
-                {/* NEW: Added Bell and Email to the right side */}
-                <div className="flex items-center gap-4">
-                    <NotificationBell />
-                    <span className="text-sm text-gray-600">{user?.email}</span>
-                </div>
-            </nav>
+            <Navbar />
+            
 
             {/* Board Area */}
             <main className="flex-1 overflow-x-auto p-6">

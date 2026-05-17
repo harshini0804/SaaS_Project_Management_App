@@ -2,6 +2,7 @@ import { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
+import Navbar from '../components/Navbar';
 
 export default function Settings() {
     const { user, logout } = useContext(AuthContext);
@@ -71,16 +72,8 @@ export default function Settings() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <nav className="flex items-center justify-between bg-white px-6 py-4 shadow-sm">
-                <Link to="/dashboard" className="text-xl font-bold text-blue-600 hover:text-blue-800">
-                    ← Back to Dashboard
-                </Link>
-                <div className="flex items-center gap-4">
-                    <span className="text-sm font-semibold text-gray-800 uppercase">({currentUserRole})</span>
-                    <span className="text-sm text-gray-600">{user?.email}</span>
-                    <button onClick={logout} className="font-medium text-red-600 hover:text-red-800">Logout</button>
-                </div>
-            </nav>
+            <Navbar />
+            
 
             <main className="mx-auto max-w-3xl px-6 py-8">
                 <h1 className="mb-8 text-3xl font-bold text-gray-900">Workspace Settings</h1>

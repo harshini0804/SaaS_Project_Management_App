@@ -25,6 +25,28 @@ export default function Settings() {
         }
     };
 
+    // NEW: Handle success/cancel messages from Stripe redirection
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('success')) {
+            alert("🎉 Payment successful! You are now on the Pro plan.");
+        }
+        if (urlParams.get('canceled')) {
+            alert("Payment was canceled. Your workspace has not been charged.");
+        }
+    }, []);
+
+    // NEW: Trigger the Stripe Checkout
+    const handleUpgradeToPro = async () => {
+        try {
+            const response = await api.post('/billing/create-checkout-session');
+            // Redirect the user's browser to the secure Stripe page
+            window.location.href = response.data.url; 
+        } catch (error) {
+            alert("Failed to start checkout. Please try again.");
+        }
+    };
+
     const handleUpdateName = async (e) => {
         e.preventDefault();
         try {
@@ -77,6 +99,35 @@ export default function Settings() {
 
             <main className="mx-auto max-w-3xl px-6 py-8">
                 <h1 className="mb-8 text-3xl font-bold text-gray-900">Workspace Settings</h1>
+
+                {/* --- NEW: BILLING SECTION --- */}
+                {isPrivileged && (
+                    <div className="mb-8 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                        <h2 className="mb-4 text-xl font-semibold">Billing & Subscription</h2>
+                        <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-5">
+                            <div>
+                                <p className="text-lg font-medium text-gray-900">
+                                    Current Plan: <span className="uppercase text-blue-600 font-bold ml-1">{workspace.subscription_plan}</span>
+                                </p>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    {workspace.subscription_plan === 'pro' 
+                                        ? 'You have access to all premium features and unlimited projects.' 
+                                        : 'Upgrade to Pro to unlock unlimited projects and advanced analytics.'}
+                                </p>
+                            </div>
+                            
+                            {/* Only show the upgrade button if they are on the free plan */}
+                            {workspace.subscription_plan !== 'pro' && (
+                                <button 
+                                    onClick={handleUpgradeToPro}
+                                    className="whitespace-nowrap rounded-md bg-purple-600 px-6 py-2.5 font-medium text-white shadow-sm transition-colors hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+                                >
+                                    Upgrade to Pro ($15/mo)
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* Only let owners/admins rename the workspace */}
                 {isPrivileged && (

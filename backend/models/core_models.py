@@ -24,6 +24,9 @@ class Tenant(Base):
     name = Column(String, nullable=False)
     slug = Column(String, unique=True, index=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    stripe_customer_id = Column(String, nullable=True, index=True)
+    subscription_status = Column(String, default="free") # 'free', 'active', 'past_due', 'canceled'
+    subscription_plan = Column(String, default="free") # 'free', 'pro'
 
     # Relationships
     members = relationship("TenantMember", back_populates="tenant", cascade="all, delete-orphan")

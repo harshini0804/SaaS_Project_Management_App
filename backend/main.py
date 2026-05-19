@@ -8,7 +8,7 @@ from api.workspaces import router as workspaces_router
 from api.projects import router as projects_router 
 from api.tasks import router as tasks_router 
 from api.notifications import router as notifications_router
-from api import auth, projects, tasks, workspaces, notifications, analytics
+from api import auth, projects, tasks, workspaces, notifications, analytics,billing, ai
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -32,6 +32,8 @@ app.include_router(projects_router, prefix=f"{settings.API_V1_STR}/projects", ta
 app.include_router(tasks_router, prefix=f"{settings.API_V1_STR}/tasks", tags=["Tasks"])
 app.include_router(notifications_router, prefix=f"{settings.API_V1_STR}/notifications", tags=["Notifications"])
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
+app.include_router(billing.router, prefix="/api/v1/billing", tags=["Billing"])
+app.include_router(ai.router, prefix="/api/v1/ai", tags=["AI Features"])
 
 @app.get("/")
 def root():

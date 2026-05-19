@@ -15,6 +15,7 @@ class WorkspaceResponse(BaseModel):
     id: str
     name: str
     slug: str
+    subscription_plan: str = "free"
     members: List[TeamMemberResponse]
 
 

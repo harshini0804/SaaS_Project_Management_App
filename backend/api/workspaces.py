@@ -43,6 +43,7 @@ def get_my_workspace(
         id=tenant.id,
         name=tenant.name,
         slug=tenant.slug,
+        subscription_plan=tenant.subscription_plan or "free",        
         members=formatted_members
     )
 

@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6380/0"
     AWS_SES_SENDER_EMAIL: str = ""
 
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_PRO_PRICE_ID: str = ""
+    FRONTEND_URL: str = "http://localhost:5173"
+
     class Config:
         env_file = ".env"
 

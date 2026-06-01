@@ -70,3 +70,16 @@ docker/db_data/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files (These contain a map of AWS architecture AND plaintext passwords)
+*.tfstate
+*.tfstate.*
+
+# .tfvars files (These contain actual secret passwords and keys)
+*.tfvars
+*.tfvars.json
+
+*.zip

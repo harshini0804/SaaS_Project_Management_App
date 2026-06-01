@@ -79,6 +79,7 @@ class Task(Base):
     project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     assignee_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
 class TaskComment(Base):
     __tablename__ = "task_comments"

@@ -172,7 +172,7 @@ export default function Settings() {
                                 <option value="viewer">Viewer</option>
                             </select>
                             <button type="submit" className="whitespace-nowrap rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
-                                Generate Magic Link
+                                Generate Link
                             </button>
                         </form>
                     </div>

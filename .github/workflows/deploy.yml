@@ -1,0 +1,110 @@
+name: Production CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main # Deploys every time you push to the main branch
+
+jobs:
+  # ==========================================
+  # 1. DEPLOY REACT FRONTEND TO S3
+  # ==========================================
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install & Build React
+        working-directory: ./frontend
+        run: |
+          npm ci
+          # We dynamically inject the backend IP into the React build!
+          echo "VITE_API_URL=http://${{ secrets.EC2_HOST }}:8000/api/v1" > .env
+          npm run build
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Sync Static Files to S3
+        working-directory: ./frontend/dist
+        run: |
+          aws s3 sync . s3://${{ secrets.FRONTEND_S3_BUCKET }} --delete
+
+  # ==========================================
+  # 2. DEPLOY FASTAPI BACKEND TO EC2
+  # ==========================================
+  deploy-backend:
+    runs-on: ubuntu-latest
+    needs: deploy-frontend # Ensures frontend finishes first
+    
+    steps:
+      - name: Securely SSH and Deploy Code
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/app
+            
+            # 1. Clone repository if empty, otherwise pull latest changes
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/${{ github.repository }}.git .
+            else
+              git pull origin main
+            fi
+            
+            # 2. Dynamically create the backend .env file securely
+            cat <<EOT > backend/.env
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            ALGORITHM=HS256
+            ACCESS_TOKEN_EXPIRE_MINUTES=1440
+            AWS_REGION=ap-south-1
+            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            AWS_BUCKET_NAME=${{ secrets.FRONTEND_S3_BUCKET }}
+            STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+            STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
+            STRIPE_PRO_PRICE_ID=${{ secrets.STRIPE_PRO_PRICE_ID }}
+            FRONTEND_URL=http://${{ secrets.FRONTEND_S3_BUCKET }}.s3-website.ap-south-1.amazonaws.com
+            EOT
+            
+            # 3. Setup Python Virtual Environment and Install Dependencies
+            cd backend
+            python3.11 -m venv venv
+            source venv/bin/activate
+            pip install -r requirements.txt
+            
+            # 4. Create a systemd service to keep FastAPI running automatically
+            sudo bash -c 'cat <<EOF > /etc/systemd/system/fastapi.service
+            [Unit]
+            Description=Gunicorn daemon for FastAPI
+            After=network.target
+
+            [Service]
+            User=ubuntu
+            Group=www-data
+            WorkingDirectory=/home/ubuntu/app/backend
+            ExecStart=/home/ubuntu/app/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+            Restart=always
+
+            [Install]
+            WantedBy=multi-user.target
+            EOF'
+
+            # 5. Reload systemd, apply DB changes, and restart the server
+            sudo systemctl daemon-reload
+            alembic upgrade head
+            sudo systemctl enable fastapi
+            sudo systemctl restart fastapi

@@ -224,6 +224,17 @@ resource "aws_instance" "backend" {
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
   iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
 
+  # AUTOMATED SERVER PREPARATION
+  user_data = <<-EOF
+              #!/bin/bash
+              apt-get update -y
+              apt-get install python3.11-venv python3-pip git nginx -y
+              
+              # Grant the default 'ubuntu' user permissions to the web directory
+              mkdir -p /home/ubuntu/app
+              chown -R ubuntu:ubuntu /home/ubuntu/app
+              EOF
+
   tags = {
     Name = "${var.project_name}-backend-engine"
   }
